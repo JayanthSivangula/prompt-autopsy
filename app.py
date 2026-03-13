@@ -11,7 +11,7 @@ client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 # Page setup
 st.set_page_config(page_title="Prompt Autopsy", page_icon="🩺", layout="wide")
 
-# Custom CSS for beautiful UI
+# Custom CSS
 st.markdown("""
 <style>
     .main { background-color: #0e1117; }
@@ -35,7 +35,6 @@ st.markdown("""
     }
     .stButton>button:hover {
         background: linear-gradient(90deg, #48cfad, #6c63ff);
-        transform: scale(1.02);
     }
     .result-box {
         background-color: #1e2130;
@@ -44,79 +43,98 @@ st.markdown("""
         border-left: 4px solid #6c63ff;
         margin-top: 20px;
     }
-    .score-box {
+    .score-card {
         background-color: #1e2130;
         border-radius: 12px;
-        padding: 15px;
+        padding: 20px;
         text-align: center;
         border: 1px solid #3d4466;
     }
     h1 { color: #6c63ff !important; }
-    .template-btn>button {
-        background-color: #1e2130 !important;
-        color: #6c63ff !important;
-        border: 1px solid #6c63ff !important;
-        border-radius: 8px !important;
-        font-size: 13px !important;
-        padding: 5px 10px !important;
-    }
 </style>
 """, unsafe_allow_html=True)
+
+# Initialize session state
+if "history" not in st.session_state:
+    st.session_state.history = []
+if "library" not in st.session_state:
+    st.session_state.library = []
+if "chat_messages" not in st.session_state:
+    st.session_state.chat_messages = []
+if "last_result" not in st.session_state:
+    st.session_state.last_result = None
+if "last_prompt" not in st.session_state:
+    st.session_state.last_prompt = None
 
 # Header
 st.title("🩺 Prompt Autopsy Tool")
 st.markdown("##### Diagnose why your AI prompt failed — and get a smarter version instantly")
 st.markdown("---")
 
-# Prompt Templates
-st.markdown("### 📋 Quick Templates — Click to Auto-Fill")
-col1, col2, col3, col4 = st.columns(4)
+# Tabs
+tab1, tab2, tab3, tab4 = st.tabs(["🔬 Diagnose", "💬 Chat Mode", "📦 Prompt Library", "💾 History"])
 
-templates = {
-    "✍️ Essay": ("Write an essay", "Here is an essay about the topic."),
-    "💻 Code": ("Write code", "Here is some code."),
-    "📧 Email": ("Write an email", "Hi, I am writing to you about this matter."),
-    "📱 Social": ("Write a social media post", "Check this out!")
-}
+# ──────────────────────────────────────────────
+# TAB 1 — DIAGNOSE
+# ──────────────────────────────────────────────
+with tab1:
 
-selected_template = None
-with col1:
-    if st.button("✍️ Essay"):
-        selected_template = "✍️ Essay"
-with col2:
-    if st.button("💻 Code"):
-        selected_template = "💻 Code"
-with col3:
-    if st.button("📧 Email"):
-        selected_template = "📧 Email"
-with col4:
-    if st.button("📱 Social"):
-        selected_template = "📱 Social"
+    # Category selector
+    st.markdown("### 🎯 Select Prompt Category")
+    category = st.selectbox("", [
+        "General",
+        "Creative Writing",
+        "Coding",
+        "Business / Email",
+        "Data Analysis",
+        "Marketing / Copywriting",
+        "Research / Summary",
+        "Customer Support"
+    ])
 
-# Set default values
-default_prompt = templates[selected_template][0] if selected_template else ""
-default_output = templates[selected_template][1] if selected_template else ""
+    category_tips = {
+        "General": "Be clear, specific, and provide context.",
+        "Creative Writing": "Specify tone, style, length, and audience.",
+        "Coding": "Mention language, expected input/output, and any constraints.",
+        "Business / Email": "Specify recipient, purpose, tone, and desired outcome.",
+        "Data Analysis": "Mention data format, what insights you need, and output format.",
+        "Marketing / Copywriting": "Include target audience, product benefits, and call to action.",
+        "Research / Summary": "Specify source type, depth of summary, and key focus areas.",
+        "Customer Support": "Include product context, customer issue, and desired resolution tone."
+    }
 
-st.markdown("---")
+    st.info(f"💡 **Tip for {category}:** {category_tips[category]}")
 
-# Input section
-col_left, col_right = st.columns(2)
-with col_left:
-    st.markdown("### 📝 Your Bad Prompt")
-    bad_prompt = st.text_area("", height=180, placeholder="Paste your prompt here...", value=default_prompt, key="prompt")
+    # Language selector
+    st.markdown("### 🌐 Output Language")
+    language = st.selectbox("", [
+        "English", "Hindi", "Spanish", "French",
+        "German", "Japanese", "Chinese", "Arabic", "Telugu"
+    ])
 
-with col_right:
-    st.markdown("### 📤 The Bad Output You Got")
-    bad_output = st.text_area("", height=180, placeholder="Paste the bad output here...", value=default_output, key="output")
+    st.markdown("---")
 
-# Diagnose button
-st.markdown("###")
-diagnose_clicked = st.button("🔬 Diagnose My Prompt")
+    # Input boxes
+    col_left, col_right = st.columns(2)
+    with col_left:
+        st.markdown("### 📝 Your Bad Prompt")
+        bad_prompt = st.text_area("", height=180,
+                                   placeholder="Paste your prompt here...",
+                                   key="prompt")
+    with col_right:
+        st.markdown("### 📤 The Bad Output You Got")
+        bad_output = st.text_area("", height=180,
+                                   placeholder="Paste the bad output here...",
+                                   key="output")
 
-# AI diagnosis function
-def diagnose_prompt(prompt, output):
-    system_prompt = f"""
+    diagnose_clicked = st.button("🔬 Diagnose My Prompt")
+
+    # AI diagnosis function
+    def diagnose_prompt(prompt, output, cat, lang):
+        system_prompt = f"""
 You are Prompt Autopsy AI — an expert at analyzing why AI prompts fail.
+The user's prompt is in the category: {cat}
+Please respond in: {lang}
 
 User's Bad Prompt:
 {prompt}
@@ -124,7 +142,7 @@ User's Bad Prompt:
 Bad Output Received:
 {output}
 
-Please respond in this exact format:
+Respond in this exact format:
 
 ## 🔍 Diagnosis
 [What went wrong with the prompt]
@@ -138,63 +156,109 @@ Please respond in this exact format:
 ## 💡 Improvements Made
 [Explain what you changed and why]
 
+## 🎯 Category-Specific Tips
+[Give 2-3 tips specific to the {cat} category]
+
 ## 📊 Scores
-- Clarity: X/10
-- Specificity: X/10
-- Structure: X/10
-- Overall: X/10
+Score the FIXED prompt you wrote above, not the original bad one.
+Clarity: X/10
+Specificity: X/10
+Structure: X/10
+Overall: X/10
 """
-    response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[
-            {"role": "system", "content": "You analyze prompts like a doctor performs an autopsy. Be concise and helpful."},
-            {"role": "user", "content": system_prompt}
-        ],
-        temperature=0.3
-    )
-    return response.choices[0].message.content
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": "You analyze prompts like a doctor. Be concise and helpful."},
+                {"role": "user", "content": system_prompt}
+            ],
+            temperature=0.3
+        )
+        return response.choices[0].message.content
 
-# History storage
-if "history" not in st.session_state:
-    st.session_state.history = []
+    # Score parser
+    def parse_scores(result):
+        scores = {"Clarity": 0, "Specificity": 0, "Structure": 0, "Overall": 0}
+        for line in result.split("\n"):
+            for key in scores:
+                if key.lower() in line.lower():
+                    try:
+                        numbers = [int(s) for s in line.replace("/", " ").split() if s.isdigit()]
+                        if numbers:
+                            scores[key] = min(numbers[0], 10)
+                    except:
+                        pass
+        return scores
 
-# Run diagnosis
-if diagnose_clicked:
-    if bad_prompt and bad_output:
-        with st.spinner("🔬 Analyzing your prompt DNA..."):
-            result = diagnose_prompt(bad_prompt, bad_output)
+    if diagnose_clicked:
+        if bad_prompt and bad_output:
+            with st.spinner("🔬 Analyzing your prompt DNA..."):
+                result = diagnose_prompt(bad_prompt, bad_output, category, language)
 
-        # Save to history
-        st.session_state.history.append({
-            "time": datetime.now().strftime("%H:%M:%S"),
-            "prompt": bad_prompt,
-            "result": result
-        })
+            st.session_state.last_result = result
+            st.session_state.last_prompt = bad_prompt
+            st.session_state.chat_messages = []
 
-        st.success("✅ Diagnosis Complete!")
-        st.markdown("---")
+            st.session_state.history.append({
+                "time": datetime.now().strftime("%H:%M:%S"),
+                "prompt": bad_prompt,
+                "category": category,
+                "language": language,
+                "result": result
+            })
 
-        # Show result
-        st.markdown('<div class="result-box">', unsafe_allow_html=True)
-        st.markdown(result)
-        st.markdown('</div>', unsafe_allow_html=True)
+            st.success("✅ Diagnosis Complete!")
+            st.markdown("---")
 
-        st.markdown("---")
+            # Result box
+            st.markdown('<div class="result-box">', unsafe_allow_html=True)
+            st.markdown(result)
+            st.markdown('</div>', unsafe_allow_html=True)
 
-        # Side by side
-        st.markdown("## 📊 Side by Side Comparison")
-        c1, c2 = st.columns(2)
-        with c1:
-            st.error("❌ Original Prompt")
-            st.code(bad_prompt)
-        with c2:
-            st.success("✅ Fixed Prompt")
-            st.info("See the Fixed Prompt section in the diagnosis above!")
+            st.markdown("---")
 
-        # Download report
-        st.markdown("---")
-        report = f"""PROMPT AUTOPSY REPORT
+            # Score dashboard
+            st.markdown("## 📊 Score Dashboard")
+            scores = parse_scores(result)
+            c1, c2, c3, c4 = st.columns(4)
+            for col, (label, score) in zip([c1, c2, c3, c4], scores.items()):
+                color = "#48cfad" if score >= 7 else "#f7b731" if score >= 4 else "#fc5c65"
+                col.markdown(f"""
+                <div class="score-card">
+                    <h2 style="color:{color}">{score}/10</h2>
+                    <p style="color:#aaa">{label}</p>
+                </div>
+                """, unsafe_allow_html=True)
+
+            st.markdown("---")
+
+            # Side by side
+            st.markdown("## 📋 Side by Side Comparison")
+            c1, c2 = st.columns(2)
+            with c1:
+                st.error("❌ Original Prompt")
+                st.code(bad_prompt)
+            with c2:
+                st.success("✅ Fixed Prompt")
+                st.info("See the Fixed Prompt section in the diagnosis above!")
+
+            st.markdown("---")
+
+            # Save to library button
+            if st.button("📦 Save to Prompt Library"):
+                st.session_state.library.append({
+                    "time": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    "category": category,
+                    "prompt": bad_prompt,
+                    "result": result
+                })
+                st.success("✅ Saved to Prompt Library!")
+
+            # Download report
+            report = f"""PROMPT AUTOPSY REPORT
 Generated: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+Category: {category}
+Language: {language}
 
 ORIGINAL PROMPT:
 {bad_prompt}
@@ -205,20 +269,80 @@ ORIGINAL OUTPUT:
 DIAGNOSIS:
 {result}
 """
-        st.download_button(
-            label="📄 Download Report as TXT",
-            data=report,
-            file_name=f"prompt_autopsy_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
-            mime="text/plain"
-        )
+            st.download_button(
+                label="📄 Download Report as TXT",
+                data=report,
+                file_name=f"prompt_autopsy_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                mime="text/plain"
+            )
 
+        else:
+            st.warning("⚠️ Please fill in both boxes first!")
+
+# ──────────────────────────────────────────────
+# TAB 2 — CHAT MODE
+# ──────────────────────────────────────────────
+with tab2:
+    st.markdown("### 💬 Chat Mode — Refine Your Prompt Further")
+
+    if st.session_state.last_result:
+        st.info(f"💡 Chatting about: **{st.session_state.last_prompt[:60]}...**")
+
+        for msg in st.session_state.chat_messages:
+            with st.chat_message(msg["role"]):
+                st.markdown(msg["content"])
+
+        user_input = st.chat_input("Ask anything about your prompt diagnosis...")
+
+        if user_input:
+            st.session_state.chat_messages.append({"role": "user", "content": user_input})
+
+            with st.chat_message("user"):
+                st.markdown(user_input)
+
+            with st.chat_message("assistant"):
+                with st.spinner("Thinking..."):
+                    messages = [
+                        {"role": "system", "content": f"You are Prompt Autopsy AI. The user's original prompt was: '{st.session_state.last_prompt}'. The diagnosis was: {st.session_state.last_result}. Help them refine and improve further."},
+                    ] + st.session_state.chat_messages
+
+                    response = client.chat.completions.create(
+                        model="llama-3.3-70b-versatile",
+                        messages=messages,
+                        temperature=0.3
+                    )
+                    reply = response.choices[0].message.content
+                    st.markdown(reply)
+                    st.session_state.chat_messages.append({"role": "assistant", "content": reply})
     else:
-        st.warning("⚠️ Please fill in both boxes first!")
+        st.warning("⚠️ Run a diagnosis first in the 🔬 Diagnose tab, then come back here to chat!")
 
-# Prompt History
-if st.session_state.history:
-    st.markdown("---")
-    st.markdown("## 💾 Prompt History")
-    for i, item in enumerate(reversed(st.session_state.history)):
-        with st.expander(f"🕐 {item['time']} — {item['prompt'][:50]}..."):
-            st.markdown(item["result"])
+# ──────────────────────────────────────────────
+# TAB 3 — PROMPT LIBRARY
+# ──────────────────────────────────────────────
+with tab3:
+    st.markdown("### 📦 Your Saved Prompt Library")
+
+    if st.session_state.library:
+        for i, item in enumerate(reversed(st.session_state.library)):
+            with st.expander(f"📁 {item['time']} | {item['category']} | {item['prompt'][:50]}..."):
+                st.markdown(item["result"])
+                if st.button(f"🗑️ Delete", key=f"del_{i}"):
+                    st.session_state.library.pop(len(st.session_state.library) - 1 - i)
+                    st.rerun()
+    else:
+        st.info("No saved prompts yet! Run a diagnosis and click 'Save to Prompt Library'.")
+
+# ──────────────────────────────────────────────
+# TAB 4 — HISTORY
+# ──────────────────────────────────────────────
+with tab4:
+    st.markdown("### 💾 Diagnosis History")
+
+    if st.session_state.history:
+        for i, item in enumerate(reversed(st.session_state.history)):
+            with st.expander(f"🕐 {item['time']} | {item['category']} | {item['prompt'][:50]}..."):
+                st.markdown(item["result"])
+    else:
+        st.info("No history yet! Run your first diagnosis in the 🔬 Diagnose tab.")
+
