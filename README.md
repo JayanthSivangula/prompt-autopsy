@@ -48,7 +48,7 @@ You paste a bad prompt + the bad output you got → It diagnoses what went wrong
 
 ## 🚀 Live Demo
 
-🌍 **Try it here →** [prompt-autopsy.streamlit.app](https://jayanthsivangula-prompt-autopsy.streamlit.app)
+🌍 **Try it here →** [prompt-autopsy.streamlit.app](https://prompt-autopsy-h4jaauftrpccws8bjcvg6u.streamlit.app/)
 
 ---
 
